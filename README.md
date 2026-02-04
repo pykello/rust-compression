@@ -18,15 +18,18 @@ A benchmark tool for comparing 9 different Rust compression libraries based on t
 
 ```bash
 cargo build --release
-./target/release/compression-bench <file_path>
+./target/release/compression-bench [--runs <N>] <file_path>
 ```
+
+Options:
+- `--runs <N>`: Number of runs per compression algorithm (default: 1)
 
 ## Output
 
 The benchmark outputs three metrics for each compression algorithm:
 - **Compression Ratio**: Original size / Compressed size
-- **Compression Throughput**: MiB/s (average of 3 runs)
-- **Decompression Throughput**: MiB/s (average of 3 runs)
+- **Compression Throughput**: MiB/s (averaged over multiple runs if --runs is specified)
+- **Decompression Throughput**: MiB/s (averaged over multiple runs if --runs is specified)
 
 Each throughput measurement is based purely on the compression/decompression algorithm itself, excluding any memory copying or file I/O overhead.
 

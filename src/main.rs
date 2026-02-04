@@ -31,15 +31,54 @@ impl BenchmarkResults {
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    if args.len() != 2 {
-        eprintln!("Usage: {} <filename>", args[0]);
-        std::process::exit(1);
+    
+    // Parse arguments
+    let mut filename = None;
+    let mut num_runs = 1; // Default to 1 run
+    
+    let mut i = 1;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--runs" => {
+                if i + 1 >= args.len() {
+                    eprintln!("Error: --runs requires a value");
+                    eprintln!("Usage: {} [--runs <N>] <filename>", args[0]);
+                    std::process::exit(1);
+                }
+                num_runs = args[i + 1].parse().unwrap_or_else(|_| {
+                    eprintln!("Error: --runs value must be a positive integer");
+                    std::process::exit(1);
+                });
+                if num_runs == 0 {
+                    eprintln!("Error: --runs value must be at least 1");
+                    std::process::exit(1);
+                }
+                i += 2;
+            }
+            arg if !arg.starts_with("--") => {
+                if filename.is_some() {
+                    eprintln!("Error: multiple filenames provided");
+                    eprintln!("Usage: {} [--runs <N>] <filename>", args[0]);
+                    std::process::exit(1);
+                }
+                filename = Some(arg.to_string());
+                i += 1;
+            }
+            _ => {
+                eprintln!("Error: unknown option '{}'", args[i]);
+                eprintln!("Usage: {} [--runs <N>] <filename>", args[0]);
+                std::process::exit(1);
+            }
+        }
     }
-
-    let filename = &args[1];
+    
+    let filename = filename.unwrap_or_else(|| {
+        eprintln!("Usage: {} [--runs <N>] <filename>", args[0]);
+        std::process::exit(1);
+    });
 
     // Get file size
-    let metadata = fs::metadata(filename).expect("Failed to read file metadata");
+    let metadata = fs::metadata(&filename).expect("Failed to read file metadata");
     let original_size = metadata.len() as usize;
 
     println!("File: {}", filename);
@@ -48,10 +87,11 @@ fn main() {
         original_size,
         original_size as f64 / (1024.0 * 1024.0)
     );
+    println!("Number of runs per algorithm: {}", num_runs);
     println!();
 
     // Process file in chunks
-    let mut file = fs::File::open(filename).expect("Failed to open file");
+    let mut file = fs::File::open(&filename).expect("Failed to open file");
     let mut chunk_number = 0;
 
     let mut flate2_results = BenchmarkResults::new();
@@ -78,15 +118,15 @@ fn main() {
         println!("Processing chunk {} ({} bytes)...", chunk_number, bytes_read);
 
         // Benchmark each compression algorithm on this chunk
-        flate2_results.merge(benchmark_flate2(&chunk, bytes_read));
-        snap_results.merge(benchmark_snap(&chunk, bytes_read));
-        lz4_results.merge(benchmark_lz4(&chunk, bytes_read));
-        zstd_results.merge(benchmark_zstd(&chunk, bytes_read));
-        xz2_results.merge(benchmark_xz2(&chunk, bytes_read));
-        lzma_rs_results.merge(benchmark_lzma_rs(&chunk, bytes_read));
-        miniz_oxide_results.merge(benchmark_miniz_oxide(&chunk, bytes_read));
-        lz4_flex_results.merge(benchmark_lz4_flex(&chunk, bytes_read));
-        libdeflate_results.merge(benchmark_libdeflate(&chunk, bytes_read));
+        flate2_results.merge(benchmark_flate2(&chunk, bytes_read, num_runs));
+        snap_results.merge(benchmark_snap(&chunk, bytes_read, num_runs));
+        lz4_results.merge(benchmark_lz4(&chunk, bytes_read, num_runs));
+        zstd_results.merge(benchmark_zstd(&chunk, bytes_read, num_runs));
+        xz2_results.merge(benchmark_xz2(&chunk, bytes_read, num_runs));
+        lzma_rs_results.merge(benchmark_lzma_rs(&chunk, bytes_read, num_runs));
+        miniz_oxide_results.merge(benchmark_miniz_oxide(&chunk, bytes_read, num_runs));
+        lz4_flex_results.merge(benchmark_lz4_flex(&chunk, bytes_read, num_runs));
+        libdeflate_results.merge(benchmark_libdeflate(&chunk, bytes_read, num_runs));
     }
 
     println!();
@@ -108,7 +148,7 @@ fn main() {
     print_results("libdeflate", original_size, &libdeflate_results);
 }
 
-fn benchmark_flate2(data: &[u8], _original_size: usize) -> BenchmarkResults {
+fn benchmark_flate2(data: &[u8], _original_size: usize, num_runs: usize) -> BenchmarkResults {
     use flate2::write::{GzDecoder, GzEncoder};
     use flate2::Compression;
 
@@ -117,7 +157,7 @@ fn benchmark_flate2(data: &[u8], _original_size: usize) -> BenchmarkResults {
     let mut compress_times = Vec::new();
     let mut decompress_times = Vec::new();
 
-    for run in 0..3 {
+    for run in 0..num_runs {
         // Compression
         let start = Instant::now();
         let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
@@ -147,7 +187,7 @@ fn benchmark_flate2(data: &[u8], _original_size: usize) -> BenchmarkResults {
     }
 }
 
-fn benchmark_snap(data: &[u8], _original_size: usize) -> BenchmarkResults {
+fn benchmark_snap(data: &[u8], _original_size: usize, num_runs: usize) -> BenchmarkResults {
     use snap::raw::{Decoder, Encoder};
 
     println!("  [snap] Starting benchmark...");
@@ -155,7 +195,7 @@ fn benchmark_snap(data: &[u8], _original_size: usize) -> BenchmarkResults {
     let mut compress_times = Vec::new();
     let mut decompress_times = Vec::new();
 
-    for run in 0..3 {
+    for run in 0..num_runs {
         // Compression
         let start = Instant::now();
         let compressed = Encoder::new().compress_vec(data).unwrap();
@@ -181,7 +221,7 @@ fn benchmark_snap(data: &[u8], _original_size: usize) -> BenchmarkResults {
     }
 }
 
-fn benchmark_lz4(data: &[u8], original_size: usize) -> BenchmarkResults {
+fn benchmark_lz4(data: &[u8], original_size: usize, num_runs: usize) -> BenchmarkResults {
     use lz4::block::{compress, decompress};
 
     println!("  [lz4] Starting benchmark...");
@@ -189,7 +229,7 @@ fn benchmark_lz4(data: &[u8], original_size: usize) -> BenchmarkResults {
     let mut compress_times = Vec::new();
     let mut decompress_times = Vec::new();
 
-    for run in 0..3 {
+    for run in 0..num_runs {
         // Compression
         let start = Instant::now();
         let compressed = compress(data, None, false).unwrap();
@@ -215,13 +255,13 @@ fn benchmark_lz4(data: &[u8], original_size: usize) -> BenchmarkResults {
     }
 }
 
-fn benchmark_zstd(data: &[u8], _original_size: usize) -> BenchmarkResults {
+fn benchmark_zstd(data: &[u8], _original_size: usize, num_runs: usize) -> BenchmarkResults {
     println!("  [zstd] Starting benchmark...");
     let mut compressed_sizes = Vec::new();
     let mut compress_times = Vec::new();
     let mut decompress_times = Vec::new();
 
-    for run in 0..3 {
+    for run in 0..num_runs {
         // Compression
         let start = Instant::now();
         let compressed = zstd::encode_all(data, 3).unwrap();
@@ -247,7 +287,7 @@ fn benchmark_zstd(data: &[u8], _original_size: usize) -> BenchmarkResults {
     }
 }
 
-fn benchmark_xz2(data: &[u8], _original_size: usize) -> BenchmarkResults {
+fn benchmark_xz2(data: &[u8], _original_size: usize, num_runs: usize) -> BenchmarkResults {
     use xz2::read::{XzDecoder, XzEncoder};
 
     println!("  [xz2] Starting benchmark...");
@@ -255,7 +295,7 @@ fn benchmark_xz2(data: &[u8], _original_size: usize) -> BenchmarkResults {
     let mut compress_times = Vec::new();
     let mut decompress_times = Vec::new();
 
-    for run in 0..3 {
+    for run in 0..num_runs {
         // Compression
         let start = Instant::now();
         let mut encoder = XzEncoder::new(&data[..], 6);
@@ -285,7 +325,7 @@ fn benchmark_xz2(data: &[u8], _original_size: usize) -> BenchmarkResults {
     }
 }
 
-fn benchmark_lzma_rs(data: &[u8], _original_size: usize) -> BenchmarkResults {
+fn benchmark_lzma_rs(data: &[u8], _original_size: usize, num_runs: usize) -> BenchmarkResults {
     use lzma_rs::lzma_compress;
     use lzma_rs::lzma_decompress;
 
@@ -294,7 +334,7 @@ fn benchmark_lzma_rs(data: &[u8], _original_size: usize) -> BenchmarkResults {
     let mut compress_times = Vec::new();
     let mut decompress_times = Vec::new();
 
-    for run in 0..3 {
+    for run in 0..num_runs {
         // Compression
         let start = Instant::now();
         let mut compressed = Vec::new();
@@ -322,7 +362,7 @@ fn benchmark_lzma_rs(data: &[u8], _original_size: usize) -> BenchmarkResults {
     }
 }
 
-fn benchmark_miniz_oxide(data: &[u8], _original_size: usize) -> BenchmarkResults {
+fn benchmark_miniz_oxide(data: &[u8], _original_size: usize, num_runs: usize) -> BenchmarkResults {
     use miniz_oxide::deflate::compress_to_vec;
     use miniz_oxide::inflate::decompress_to_vec;
 
@@ -331,7 +371,7 @@ fn benchmark_miniz_oxide(data: &[u8], _original_size: usize) -> BenchmarkResults
     let mut compress_times = Vec::new();
     let mut decompress_times = Vec::new();
 
-    for run in 0..3 {
+    for run in 0..num_runs {
         // Compression
         let start = Instant::now();
         let compressed = compress_to_vec(data, 6);
@@ -357,13 +397,13 @@ fn benchmark_miniz_oxide(data: &[u8], _original_size: usize) -> BenchmarkResults
     }
 }
 
-fn benchmark_lz4_flex(data: &[u8], original_size: usize) -> BenchmarkResults {
+fn benchmark_lz4_flex(data: &[u8], original_size: usize, num_runs: usize) -> BenchmarkResults {
     println!("  [lz4_flex] Starting benchmark...");
     let mut compressed_sizes = Vec::new();
     let mut compress_times = Vec::new();
     let mut decompress_times = Vec::new();
 
-    for run in 0..3 {
+    for run in 0..num_runs {
         // Compression
         let start = Instant::now();
         let compressed = lz4_flex::compress(data);
@@ -389,7 +429,7 @@ fn benchmark_lz4_flex(data: &[u8], original_size: usize) -> BenchmarkResults {
     }
 }
 
-fn benchmark_libdeflate(data: &[u8], _original_size: usize) -> BenchmarkResults {
+fn benchmark_libdeflate(data: &[u8], _original_size: usize, num_runs: usize) -> BenchmarkResults {
     use libdeflater::{Compressor, Decompressor, CompressionLvl};
 
     println!("  [libdeflate] Starting benchmark...");
@@ -397,7 +437,7 @@ fn benchmark_libdeflate(data: &[u8], _original_size: usize) -> BenchmarkResults 
     let mut compress_times = Vec::new();
     let mut decompress_times = Vec::new();
 
-    for run in 0..3 {
+    for run in 0..num_runs {
         // Compression
         let start = Instant::now();
         let mut compressor = Compressor::new(CompressionLvl::default());
