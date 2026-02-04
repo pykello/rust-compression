@@ -136,7 +136,7 @@ fn benchmark_lz4(data: &[u8], original_size: usize) {
             "{:<20} {:>15} {:>20} {:>20}",
             "lz4", "SKIPPED", "-", "-"
         );
-        eprintln!("Warning: lz4 does not support files larger than {} bytes", LZ4_MAX_SIZE);
+        eprintln!("Warning: lz4 does not support files larger than {} bytes (file size: {} bytes)", LZ4_MAX_SIZE, original_size);
         return;
     }
 
@@ -341,7 +341,19 @@ fn benchmark_miniz_oxide(data: &[u8], original_size: usize) {
 
         // Decompression
         let start = Instant::now();
-        let _decompressed = handle_error!(decompress_to_vec(&compressed).map_err(|e| format!("{:?}", e)), "miniz_oxide", i);
+        let _decompressed = match decompress_to_vec(&compressed) {
+            Ok(d) => d,
+            Err(e) => {
+                if i == 0 {
+                    println!(
+                        "{:<20} {:>15} {:>20} {:>20}",
+                        "miniz_oxide", "SKIPPED", "-", "-"
+                    );
+                    eprintln!("Warning: miniz_oxide failed: {:?}", e);
+                }
+                return;
+            }
+        };
         decompress_times.push(start.elapsed());
     }
 
