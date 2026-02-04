@@ -97,7 +97,9 @@ fn main() {
     let mut flate2_results = BenchmarkResults::new();
     let mut snap_results = BenchmarkResults::new();
     let mut lz4_results = BenchmarkResults::new();
-    let mut zstd_results = BenchmarkResults::new();
+    let mut zstd_fastest_results = BenchmarkResults::new();
+    let mut zstd_balanced_results = BenchmarkResults::new();
+    let mut zstd_max_results = BenchmarkResults::new();
     let mut xz2_results = BenchmarkResults::new();
     let mut lzma_rs_results = BenchmarkResults::new();
     let mut miniz_oxide_results = BenchmarkResults::new();
@@ -121,7 +123,9 @@ fn main() {
         flate2_results.merge(benchmark_flate2(&chunk, bytes_read, num_runs));
         snap_results.merge(benchmark_snap(&chunk, bytes_read, num_runs));
         lz4_results.merge(benchmark_lz4(&chunk, bytes_read, num_runs));
-        zstd_results.merge(benchmark_zstd(&chunk, bytes_read, num_runs));
+        zstd_fastest_results.merge(benchmark_zstd_fastest(&chunk, bytes_read, num_runs));
+        zstd_balanced_results.merge(benchmark_zstd_balanced(&chunk, bytes_read, num_runs));
+        zstd_max_results.merge(benchmark_zstd_max(&chunk, bytes_read, num_runs));
         xz2_results.merge(benchmark_xz2(&chunk, bytes_read, num_runs));
         lzma_rs_results.merge(benchmark_lzma_rs(&chunk, bytes_read, num_runs));
         miniz_oxide_results.merge(benchmark_miniz_oxide(&chunk, bytes_read, num_runs));
@@ -140,7 +144,9 @@ fn main() {
     print_results("flate2 (gzip)", original_size, &flate2_results);
     print_results("snap (snappy)", original_size, &snap_results);
     print_results("lz4", original_size, &lz4_results);
-    print_results("zstd", original_size, &zstd_results);
+    print_results("zstd (fastest)", original_size, &zstd_fastest_results);
+    print_results("zstd (balanced)", original_size, &zstd_balanced_results);
+    print_results("zstd (max)", original_size, &zstd_max_results);
     print_results("xz2 (lzma)", original_size, &xz2_results);
     print_results("lzma-rs", original_size, &lzma_rs_results);
     print_results("miniz_oxide", original_size, &miniz_oxide_results);
@@ -255,8 +261,8 @@ fn benchmark_lz4(data: &[u8], original_size: usize, num_runs: usize) -> Benchmar
     }
 }
 
-fn benchmark_zstd(data: &[u8], _original_size: usize, num_runs: usize) -> BenchmarkResults {
-    println!("  [zstd] Starting benchmark...");
+fn benchmark_zstd(data: &[u8], _original_size: usize, num_runs: usize, level: i32, level_name: &str) -> BenchmarkResults {
+    println!("  [zstd {}] Starting benchmark...", level_name);
     let mut compressed_sizes = Vec::new();
     let mut compress_times = Vec::new();
     let mut decompress_times = Vec::new();
@@ -264,20 +270,20 @@ fn benchmark_zstd(data: &[u8], _original_size: usize, num_runs: usize) -> Benchm
     for run in 0..num_runs {
         // Compression
         let start = Instant::now();
-        let compressed = zstd::encode_all(data, 3).unwrap();
+        let compressed = zstd::encode_all(data, level).unwrap();
         let compress_time = start.elapsed();
         compress_times.push(compress_time);
         compressed_sizes.push(compressed.len());
-        println!("  [zstd] Run {}: compressed to {} bytes in {:.3}ms", 
-                 run + 1, compressed.len(), compress_time.as_secs_f64() * 1000.0);
+        println!("  [zstd {}] Run {}: compressed to {} bytes in {:.3}ms", 
+                 level_name, run + 1, compressed.len(), compress_time.as_secs_f64() * 1000.0);
 
         // Decompression
         let start = Instant::now();
         let _decompressed = zstd::decode_all(&compressed[..]).unwrap();
         let decompress_time = start.elapsed();
         decompress_times.push(decompress_time);
-        println!("  [zstd] Run {}: decompressed in {:.3}ms", 
-                 run + 1, decompress_time.as_secs_f64() * 1000.0);
+        println!("  [zstd {}] Run {}: decompressed in {:.3}ms", 
+                 level_name, run + 1, decompress_time.as_secs_f64() * 1000.0);
     }
 
     BenchmarkResults {
@@ -285,6 +291,18 @@ fn benchmark_zstd(data: &[u8], _original_size: usize, num_runs: usize) -> Benchm
         compress_times,
         decompress_times,
     }
+}
+
+fn benchmark_zstd_fastest(data: &[u8], original_size: usize, num_runs: usize) -> BenchmarkResults {
+    benchmark_zstd(data, original_size, num_runs, 1, "fastest")
+}
+
+fn benchmark_zstd_balanced(data: &[u8], original_size: usize, num_runs: usize) -> BenchmarkResults {
+    benchmark_zstd(data, original_size, num_runs, 3, "balanced")
+}
+
+fn benchmark_zstd_max(data: &[u8], original_size: usize, num_runs: usize) -> BenchmarkResults {
+    benchmark_zstd(data, original_size, num_runs, 10, "max compression")
 }
 
 fn benchmark_xz2(data: &[u8], _original_size: usize, num_runs: usize) -> BenchmarkResults {
