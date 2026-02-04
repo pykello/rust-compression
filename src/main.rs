@@ -144,9 +144,9 @@ fn main() {
     print_results("flate2 (gzip)", original_size, &flate2_results);
     print_results("snap (snappy)", original_size, &snap_results);
     print_results("lz4", original_size, &lz4_results);
-    print_results("zstd (fastest)", original_size, &zstd_fastest_results);
-    print_results("zstd (balanced)", original_size, &zstd_balanced_results);
-    print_results("zstd (max)", original_size, &zstd_max_results);
+    print_results("zstd (level 1)", original_size, &zstd_fastest_results);
+    print_results("zstd (level 3)", original_size, &zstd_balanced_results);
+    print_results("zstd (level 10)", original_size, &zstd_max_results);
     print_results("xz2 (lzma)", original_size, &xz2_results);
     print_results("lzma-rs", original_size, &lzma_rs_results);
     print_results("miniz_oxide", original_size, &miniz_oxide_results);
@@ -302,7 +302,7 @@ fn benchmark_zstd_balanced(data: &[u8], original_size: usize, num_runs: usize) -
 }
 
 fn benchmark_zstd_max(data: &[u8], original_size: usize, num_runs: usize) -> BenchmarkResults {
-    benchmark_zstd(data, original_size, num_runs, 10, "max compression")
+    benchmark_zstd(data, original_size, num_runs, 10, "max")
 }
 
 fn benchmark_xz2(data: &[u8], _original_size: usize, num_runs: usize) -> BenchmarkResults {
