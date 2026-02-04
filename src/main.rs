@@ -403,6 +403,14 @@ fn print_results(
     original_size: usize,
     results: &BenchmarkResults,
 ) {
+    // Guard against empty results
+    if results.compressed_sizes.is_empty() 
+        || results.compress_times.is_empty() 
+        || results.decompress_times.is_empty() {
+        eprintln!("Warning: No results to display for {}", name);
+        return;
+    }
+
     let avg_compressed_size =
         results.compressed_sizes.iter().sum::<usize>() as f64 / results.compressed_sizes.len() as f64;
     let ratio = original_size as f64 / avg_compressed_size;
