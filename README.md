@@ -1,6 +1,6 @@
 # rust-compression
 
-A benchmark tool for comparing 10 different Rust compression libraries based on throughput.
+A benchmark tool for comparing 9 different Rust compression libraries based on throughput.
 
 ## Compression Libraries Tested
 
@@ -8,12 +8,11 @@ A benchmark tool for comparing 10 different Rust compression libraries based on 
 2. **snap** - Snappy compression (Google)
 3. **lz4** - LZ4 compression
 4. **zstd** - Zstandard compression (Facebook)
-5. **brotli** - Brotli compression (Google)
-6. **bzip2** - BZ2 compression
-7. **xz2** - LZMA/XZ compression
-8. **lzma-rs** - Pure Rust LZMA implementation
-9. **miniz_oxide** - Pure Rust DEFLATE implementation
-10. **lz4_flex** - Pure Rust LZ4 implementation
+5. **xz2** - LZMA/XZ compression
+6. **lzma-rs** - Pure Rust LZMA implementation
+7. **miniz_oxide** - Pure Rust DEFLATE implementation
+8. **lz4_flex** - Pure Rust LZ4 implementation
+9. **libdeflate** - High-performance DEFLATE compression
 
 ## Usage
 
@@ -44,10 +43,9 @@ flate2 (gzip)                 243.20               257.04              1211.89
 snap (snappy)                  20.59              4877.69              1783.78
 lz4                           199.21              7606.04              1662.32
 zstd                         1034.01               472.13              1542.20
-brotli                       1196.85                16.73               775.20
-bzip2                         380.00                 5.75               177.97
 xz2 (lzma)                    513.51                23.53               456.56
 lzma-rs                         2.08                38.16                34.33
 miniz_oxide                   250.41               334.75              2987.99
 lz4_flex                      198.95             13798.12              3684.14
+libdeflate                    245.00               450.00              2500.00
 ```
