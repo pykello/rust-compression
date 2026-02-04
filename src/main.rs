@@ -11,15 +11,22 @@ fn main() {
     }
 
     let filename = &args[1];
-    
+
     // Load file into memory
     let data = fs::read(filename).expect("Failed to read file");
     let original_size = data.len();
-    
+
     println!("File: {}", filename);
-    println!("Original size: {} bytes ({:.2} MiB)", original_size, original_size as f64 / (1024.0 * 1024.0));
+    println!(
+        "Original size: {} bytes ({:.2} MiB)",
+        original_size,
+        original_size as f64 / (1024.0 * 1024.0)
+    );
     println!();
-    println!("{:<20} {:>15} {:>20} {:>20}", "Algorithm", "Ratio", "Compress (MiB/s)", "Decompress (MiB/s)");
+    println!(
+        "{:<20} {:>15} {:>20} {:>20}",
+        "Algorithm", "Ratio", "Compress (MiB/s)", "Decompress (MiB/s)"
+    );
     println!("{}", "-".repeat(80));
 
     // Benchmark each compression algorithm
@@ -32,11 +39,11 @@ fn main() {
     benchmark_xz2(&data, original_size);
     benchmark_lzma_rs(&data, original_size);
     benchmark_miniz_oxide(&data, original_size);
-    benchmark_lz_fear(&data, original_size);
+    benchmark_lz4_flex(&data, original_size);
 }
 
 fn benchmark_flate2(data: &[u8], original_size: usize) {
-    use flate2::write::{GzEncoder, GzDecoder};
+    use flate2::write::{GzDecoder, GzEncoder};
     use flate2::Compression;
 
     let mut compressed_sizes = Vec::new();
@@ -60,11 +67,17 @@ fn benchmark_flate2(data: &[u8], original_size: usize) {
         decompress_times.push(start.elapsed());
     }
 
-    print_results("flate2 (gzip)", original_size, &compressed_sizes, &compress_times, &decompress_times);
+    print_results(
+        "flate2 (gzip)",
+        original_size,
+        &compressed_sizes,
+        &compress_times,
+        &decompress_times,
+    );
 }
 
 fn benchmark_snap(data: &[u8], original_size: usize) {
-    use snap::raw::{Encoder, Decoder};
+    use snap::raw::{Decoder, Encoder};
 
     let mut compressed_sizes = Vec::new();
     let mut compress_times = Vec::new();
@@ -83,7 +96,13 @@ fn benchmark_snap(data: &[u8], original_size: usize) {
         decompress_times.push(start.elapsed());
     }
 
-    print_results("snap (snappy)", original_size, &compressed_sizes, &compress_times, &decompress_times);
+    print_results(
+        "snap (snappy)",
+        original_size,
+        &compressed_sizes,
+        &compress_times,
+        &decompress_times,
+    );
 }
 
 fn benchmark_lz4(data: &[u8], original_size: usize) {
@@ -106,7 +125,13 @@ fn benchmark_lz4(data: &[u8], original_size: usize) {
         decompress_times.push(start.elapsed());
     }
 
-    print_results("lz4", original_size, &compressed_sizes, &compress_times, &decompress_times);
+    print_results(
+        "lz4",
+        original_size,
+        &compressed_sizes,
+        &compress_times,
+        &decompress_times,
+    );
 }
 
 fn benchmark_zstd(data: &[u8], original_size: usize) {
@@ -127,7 +152,13 @@ fn benchmark_zstd(data: &[u8], original_size: usize) {
         decompress_times.push(start.elapsed());
     }
 
-    print_results("zstd", original_size, &compressed_sizes, &compress_times, &decompress_times);
+    print_results(
+        "zstd",
+        original_size,
+        &compressed_sizes,
+        &compress_times,
+        &decompress_times,
+    );
 }
 
 fn benchmark_brotli(data: &[u8], original_size: usize) {
@@ -153,11 +184,17 @@ fn benchmark_brotli(data: &[u8], original_size: usize) {
         decompress_times.push(start.elapsed());
     }
 
-    print_results("brotli", original_size, &compressed_sizes, &compress_times, &decompress_times);
+    print_results(
+        "brotli",
+        original_size,
+        &compressed_sizes,
+        &compress_times,
+        &decompress_times,
+    );
 }
 
 fn benchmark_bzip2(data: &[u8], original_size: usize) {
-    use bzip2::read::{BzEncoder, BzDecoder};
+    use bzip2::read::{BzDecoder, BzEncoder};
     use bzip2::Compression;
 
     let mut compressed_sizes = Vec::new();
@@ -181,11 +218,17 @@ fn benchmark_bzip2(data: &[u8], original_size: usize) {
         decompress_times.push(start.elapsed());
     }
 
-    print_results("bzip2", original_size, &compressed_sizes, &compress_times, &decompress_times);
+    print_results(
+        "bzip2",
+        original_size,
+        &compressed_sizes,
+        &compress_times,
+        &decompress_times,
+    );
 }
 
 fn benchmark_xz2(data: &[u8], original_size: usize) {
-    use xz2::read::{XzEncoder, XzDecoder};
+    use xz2::read::{XzDecoder, XzEncoder};
 
     let mut compressed_sizes = Vec::new();
     let mut compress_times = Vec::new();
@@ -208,7 +251,13 @@ fn benchmark_xz2(data: &[u8], original_size: usize) {
         decompress_times.push(start.elapsed());
     }
 
-    print_results("xz2 (lzma)", original_size, &compressed_sizes, &compress_times, &decompress_times);
+    print_results(
+        "xz2 (lzma)",
+        original_size,
+        &compressed_sizes,
+        &compress_times,
+        &decompress_times,
+    );
 }
 
 fn benchmark_lzma_rs(data: &[u8], original_size: usize) {
@@ -234,7 +283,13 @@ fn benchmark_lzma_rs(data: &[u8], original_size: usize) {
         decompress_times.push(start.elapsed());
     }
 
-    print_results("lzma-rs", original_size, &compressed_sizes, &compress_times, &decompress_times);
+    print_results(
+        "lzma-rs",
+        original_size,
+        &compressed_sizes,
+        &compress_times,
+        &decompress_times,
+    );
 }
 
 fn benchmark_miniz_oxide(data: &[u8], original_size: usize) {
@@ -258,10 +313,16 @@ fn benchmark_miniz_oxide(data: &[u8], original_size: usize) {
         decompress_times.push(start.elapsed());
     }
 
-    print_results("miniz_oxide", original_size, &compressed_sizes, &compress_times, &decompress_times);
+    print_results(
+        "miniz_oxide",
+        original_size,
+        &compressed_sizes,
+        &compress_times,
+        &decompress_times,
+    );
 }
 
-fn benchmark_lz_fear(data: &[u8], original_size: usize) {
+fn benchmark_lz4_flex(data: &[u8], original_size: usize) {
     let mut compressed_sizes = Vec::new();
     let mut compress_times = Vec::new();
     let mut decompress_times = Vec::new();
@@ -279,7 +340,13 @@ fn benchmark_lz_fear(data: &[u8], original_size: usize) {
         decompress_times.push(start.elapsed());
     }
 
-    print_results("lz4_flex", original_size, &compressed_sizes, &compress_times, &decompress_times);
+    print_results(
+        "lz4_flex",
+        original_size,
+        &compressed_sizes,
+        &compress_times,
+        &decompress_times,
+    );
 }
 
 fn print_results(
@@ -289,14 +356,23 @@ fn print_results(
     compress_times: &[std::time::Duration],
     decompress_times: &[std::time::Duration],
 ) {
-    let avg_compressed_size = compressed_sizes.iter().sum::<usize>() as f64 / compressed_sizes.len() as f64;
+    let avg_compressed_size =
+        compressed_sizes.iter().sum::<usize>() as f64 / compressed_sizes.len() as f64;
     let ratio = original_size as f64 / avg_compressed_size;
-    
-    let avg_compress_time = compress_times.iter().map(|d| d.as_secs_f64()).sum::<f64>() / compress_times.len() as f64;
+
+    let avg_compress_time =
+        compress_times.iter().map(|d| d.as_secs_f64()).sum::<f64>() / compress_times.len() as f64;
     let compress_throughput = (original_size as f64 / (1024.0 * 1024.0)) / avg_compress_time;
-    
-    let avg_decompress_time = decompress_times.iter().map(|d| d.as_secs_f64()).sum::<f64>() / decompress_times.len() as f64;
+
+    let avg_decompress_time = decompress_times
+        .iter()
+        .map(|d| d.as_secs_f64())
+        .sum::<f64>()
+        / decompress_times.len() as f64;
     let decompress_throughput = (original_size as f64 / (1024.0 * 1024.0)) / avg_decompress_time;
-    
-    println!("{:<20} {:>15.2} {:>20.2} {:>20.2}", name, ratio, compress_throughput, decompress_throughput);
+
+    println!(
+        "{:<20} {:>15.2} {:>20.2} {:>20.2}",
+        name, ratio, compress_throughput, decompress_throughput
+    );
 }
