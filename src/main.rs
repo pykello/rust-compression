@@ -36,24 +36,24 @@ fn main() {
     let mut filename = None;
     let mut num_runs = 1; // Default to 1 run
     
-    let mut i = 1;
-    while i < args.len() {
-        match args[i].as_str() {
+    let mut arg_index = 1;
+    while arg_index < args.len() {
+        match args[arg_index].as_str() {
             "--runs" => {
-                if i + 1 >= args.len() {
+                if arg_index + 1 >= args.len() {
                     eprintln!("Error: --runs requires a value");
                     eprintln!("Usage: {} [--runs <N>] <filename>", args[0]);
                     std::process::exit(1);
                 }
-                num_runs = args[i + 1].parse().unwrap_or_else(|_| {
-                    eprintln!("Error: --runs value must be a positive integer");
+                num_runs = args[arg_index + 1].parse().unwrap_or_else(|_| {
+                    eprintln!("Error: --runs value must be a number");
                     std::process::exit(1);
                 });
                 if num_runs == 0 {
                     eprintln!("Error: --runs value must be at least 1");
                     std::process::exit(1);
                 }
-                i += 2;
+                arg_index += 2;
             }
             arg if !arg.starts_with("--") => {
                 if filename.is_some() {
@@ -62,10 +62,10 @@ fn main() {
                     std::process::exit(1);
                 }
                 filename = Some(arg.to_string());
-                i += 1;
+                arg_index += 1;
             }
             _ => {
-                eprintln!("Error: unknown option '{}'", args[i]);
+                eprintln!("Error: unknown option '{}'", args[arg_index]);
                 eprintln!("Usage: {} [--runs <N>] <filename>", args[0]);
                 std::process::exit(1);
             }
