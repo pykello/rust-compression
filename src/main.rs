@@ -3,6 +3,28 @@ use std::fs;
 use std::io::{Read, Write};
 use std::time::Instant;
 
+// Maximum file size for lz4 (uses i32 for sizes)
+const LZ4_MAX_SIZE: usize = i32::MAX as usize;
+
+// Macro to handle errors in benchmark functions
+macro_rules! handle_error {
+    ($result:expr, $name:expr, $iter:expr) => {
+        match $result {
+            Ok(val) => val,
+            Err(e) => {
+                if $iter == 0 {
+                    println!(
+                        "{:<20} {:>15} {:>20} {:>20}",
+                        $name, "SKIPPED", "-", "-"
+                    );
+                    eprintln!("Warning: {} failed: {}", $name, e);
+                }
+                return;
+            }
+        }
+    };
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() != 2 {
@@ -54,29 +76,8 @@ fn benchmark_flate2(data: &[u8], original_size: usize) {
         // Compression
         let start = Instant::now();
         let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-        if let Err(e) = encoder.write_all(data) {
-            if i == 0 {
-                println!(
-                    "{:<20} {:>15} {:>20} {:>20}",
-                    "flate2 (gzip)", "SKIPPED", "-", "-"
-                );
-                eprintln!("Warning: flate2 failed: {}", e);
-            }
-            return;
-        }
-        let compressed = match encoder.finish() {
-            Ok(c) => c,
-            Err(e) => {
-                if i == 0 {
-                    println!(
-                        "{:<20} {:>15} {:>20} {:>20}",
-                        "flate2 (gzip)", "SKIPPED", "-", "-"
-                    );
-                    eprintln!("Warning: flate2 failed: {}", e);
-                }
-                return;
-            }
-        };
+        handle_error!(encoder.write_all(data), "flate2 (gzip)", i);
+        let compressed = handle_error!(encoder.finish(), "flate2 (gzip)", i);
         compress_times.push(start.elapsed());
         compressed_sizes.push(compressed.len());
 
@@ -107,19 +108,7 @@ fn benchmark_snap(data: &[u8], original_size: usize) {
     for i in 0..3 {
         // Compression
         let start = Instant::now();
-        let compressed = match Encoder::new().compress_vec(data) {
-            Ok(c) => c,
-            Err(e) => {
-                if i == 0 {
-                    println!(
-                        "{:<20} {:>15} {:>20} {:>20}",
-                        "snap (snappy)", "SKIPPED", "-", "-"
-                    );
-                    eprintln!("Warning: snap failed: {}", e);
-                }
-                return;
-            }
-        };
+        let compressed = handle_error!(Encoder::new().compress_vec(data), "snap (snappy)", i);
         compress_times.push(start.elapsed());
         compressed_sizes.push(compressed.len());
 
@@ -142,12 +131,12 @@ fn benchmark_lz4(data: &[u8], original_size: usize) {
     use lz4::block::{compress, decompress};
 
     // lz4 crate uses i32 for sizes, check if original_size fits
-    if original_size > i32::MAX as usize {
+    if original_size > LZ4_MAX_SIZE {
         println!(
             "{:<20} {:>15} {:>20} {:>20}",
             "lz4", "SKIPPED", "-", "-"
         );
-        eprintln!("Warning: lz4 does not support files larger than {} bytes", i32::MAX);
+        eprintln!("Warning: lz4 does not support files larger than {} bytes", LZ4_MAX_SIZE);
         return;
     }
 
@@ -158,19 +147,7 @@ fn benchmark_lz4(data: &[u8], original_size: usize) {
     for i in 0..3 {
         // Compression
         let start = Instant::now();
-        let compressed = match compress(data, None, false) {
-            Ok(c) => c,
-            Err(e) => {
-                if i == 0 {
-                    println!(
-                        "{:<20} {:>15} {:>20} {:>20}",
-                        "lz4", "SKIPPED", "-", "-"
-                    );
-                    eprintln!("Warning: lz4 failed: {}", e);
-                }
-                return;
-            }
-        };
+        let compressed = handle_error!(compress(data, None, false), "lz4", i);
         compress_times.push(start.elapsed());
         compressed_sizes.push(compressed.len());
 
@@ -197,19 +174,7 @@ fn benchmark_zstd(data: &[u8], original_size: usize) {
     for i in 0..3 {
         // Compression
         let start = Instant::now();
-        let compressed = match zstd::encode_all(data, 3) {
-            Ok(c) => c,
-            Err(e) => {
-                if i == 0 {
-                    println!(
-                        "{:<20} {:>15} {:>20} {:>20}",
-                        "zstd", "SKIPPED", "-", "-"
-                    );
-                    eprintln!("Warning: zstd failed: {}", e);
-                }
-                return;
-            }
-        };
+        let compressed = handle_error!(zstd::encode_all(data, 3), "zstd", i);
         compress_times.push(start.elapsed());
         compressed_sizes.push(compressed.len());
 
@@ -240,16 +205,7 @@ fn benchmark_brotli(data: &[u8], original_size: usize) {
         let start = Instant::now();
         let mut compressed = Vec::new();
         let params = BrotliEncoderParams::default();
-        if let Err(e) = brotli::BrotliCompress(&mut &data[..], &mut compressed, &params) {
-            if i == 0 {
-                println!(
-                    "{:<20} {:>15} {:>20} {:>20}",
-                    "brotli", "SKIPPED", "-", "-"
-                );
-                eprintln!("Warning: brotli failed: {}", e);
-            }
-            return;
-        }
+        handle_error!(brotli::BrotliCompress(&mut &data[..], &mut compressed, &params), "brotli", i);
         compress_times.push(start.elapsed());
         compressed_sizes.push(compressed.len());
 
@@ -282,16 +238,7 @@ fn benchmark_bzip2(data: &[u8], original_size: usize) {
         let start = Instant::now();
         let mut encoder = BzEncoder::new(&data[..], Compression::default());
         let mut compressed = Vec::new();
-        if let Err(e) = encoder.read_to_end(&mut compressed) {
-            if i == 0 {
-                println!(
-                    "{:<20} {:>15} {:>20} {:>20}",
-                    "bzip2", "SKIPPED", "-", "-"
-                );
-                eprintln!("Warning: bzip2 failed: {}", e);
-            }
-            return;
-        }
+        handle_error!(encoder.read_to_end(&mut compressed), "bzip2", i);
         compress_times.push(start.elapsed());
         compressed_sizes.push(compressed.len());
 
@@ -324,16 +271,7 @@ fn benchmark_xz2(data: &[u8], original_size: usize) {
         let start = Instant::now();
         let mut encoder = XzEncoder::new(&data[..], 6);
         let mut compressed = Vec::new();
-        if let Err(e) = encoder.read_to_end(&mut compressed) {
-            if i == 0 {
-                println!(
-                    "{:<20} {:>15} {:>20} {:>20}",
-                    "xz2 (lzma)", "SKIPPED", "-", "-"
-                );
-                eprintln!("Warning: xz2 failed: {}", e);
-            }
-            return;
-        }
+        handle_error!(encoder.read_to_end(&mut compressed), "xz2 (lzma)", i);
         compress_times.push(start.elapsed());
         compressed_sizes.push(compressed.len());
 
@@ -366,16 +304,7 @@ fn benchmark_lzma_rs(data: &[u8], original_size: usize) {
         // Compression
         let start = Instant::now();
         let mut compressed = Vec::new();
-        if let Err(e) = lzma_compress(&mut &data[..], &mut compressed) {
-            if i == 0 {
-                println!(
-                    "{:<20} {:>15} {:>20} {:>20}",
-                    "lzma-rs", "SKIPPED", "-", "-"
-                );
-                eprintln!("Warning: lzma-rs failed: {}", e);
-            }
-            return;
-        }
+        handle_error!(lzma_compress(&mut &data[..], &mut compressed), "lzma-rs", i);
         compress_times.push(start.elapsed());
         compressed_sizes.push(compressed.len());
 
@@ -412,19 +341,7 @@ fn benchmark_miniz_oxide(data: &[u8], original_size: usize) {
 
         // Decompression
         let start = Instant::now();
-        let _decompressed = match decompress_to_vec(&compressed) {
-            Ok(d) => d,
-            Err(e) => {
-                if i == 0 {
-                    println!(
-                        "{:<20} {:>15} {:>20} {:>20}",
-                        "miniz_oxide", "SKIPPED", "-", "-"
-                    );
-                    eprintln!("Warning: miniz_oxide failed: {:?}", e);
-                }
-                return;
-            }
-        };
+        let _decompressed = handle_error!(decompress_to_vec(&compressed).map_err(|e| format!("{:?}", e)), "miniz_oxide", i);
         decompress_times.push(start.elapsed());
     }
 
@@ -451,19 +368,7 @@ fn benchmark_lz4_flex(data: &[u8], original_size: usize) {
 
         // Decompression
         let start = Instant::now();
-        let _decompressed = match lz4_flex::decompress(&compressed, original_size) {
-            Ok(d) => d,
-            Err(e) => {
-                if i == 0 {
-                    println!(
-                        "{:<20} {:>15} {:>20} {:>20}",
-                        "lz4_flex", "SKIPPED", "-", "-"
-                    );
-                    eprintln!("Warning: lz4_flex failed: {}", e);
-                }
-                return;
-            }
-        };
+        let _decompressed = handle_error!(lz4_flex::decompress(&compressed, original_size), "lz4_flex", i);
         decompress_times.push(start.elapsed());
     }
 
