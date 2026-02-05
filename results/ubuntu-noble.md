@@ -1,4 +1,4 @@
-Image was created using the following instructions. We truncated 0 stripes, since we skip compressing & uploading those in ubiblk.
+Image was created using the following instructions. We truncated stripes with all zeros, since we skip compressing & uploading those in ubiblk.
 
 ```
 wget https://cloud-images.ubuntu.com/noble/20260108/noble-server-cloudimg-amd64.img
