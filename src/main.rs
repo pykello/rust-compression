@@ -536,7 +536,7 @@ fn print_results(name: &str, results: &BenchmarkResults) {
     let compress_throughput = if total_compress_time > 0.0 {
         (total_input_size / (1024.0 * 1024.0)) / total_compress_time
     } else {
-        0.0
+        f64::INFINITY
     };
 
     let total_decompress_time = results
