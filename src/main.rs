@@ -164,6 +164,8 @@ fn main() {
 }
 
 fn benchmark_memcpy(data: &[u8], num_runs: usize) -> BenchmarkResults {
+    use std::hint::black_box;
+
     println!("  [memcpy] Starting benchmark...");
     let mut input_sizes = Vec::new();
     let mut compressed_sizes = Vec::new();
@@ -174,6 +176,7 @@ fn benchmark_memcpy(data: &[u8], num_runs: usize) -> BenchmarkResults {
         let start = Instant::now();
         let mut compressed = vec![0u8; data.len()];
         compressed.copy_from_slice(data);
+        black_box(&compressed);
         let compress_time = start.elapsed();
         compress_times.push(compress_time);
         input_sizes.push(data.len());
@@ -188,6 +191,7 @@ fn benchmark_memcpy(data: &[u8], num_runs: usize) -> BenchmarkResults {
         let start = Instant::now();
         let mut decompressed = vec![0u8; compressed.len()];
         decompressed.copy_from_slice(&compressed);
+        black_box(&decompressed);
         let decompress_time = start.elapsed();
         decompress_times.push(decompress_time);
         println!(
