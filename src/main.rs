@@ -108,6 +108,7 @@ fn main() {
     let mut miniz_oxide_results = BenchmarkResults::new();
     let mut lz4_flex_results = BenchmarkResults::new();
     let mut libdeflate_results = BenchmarkResults::new();
+    let mut memcpy_results = BenchmarkResults::new();
 
     loop {
         let mut chunk = vec![0u8; CHUNK_SIZE];
@@ -123,6 +124,7 @@ fn main() {
         println!("Processing chunk {} ({} bytes)...", chunk_number, bytes_read);
 
         // Benchmark each compression algorithm on this chunk
+        memcpy_results.merge(benchmark_memcpy(&chunk, num_runs));
         flate2_results.merge(benchmark_flate2(&chunk, bytes_read, num_runs));
         snap_results.merge(benchmark_snap(&chunk, bytes_read, num_runs));
         lz4_results.merge(benchmark_lz4(&chunk, bytes_read, num_runs));
@@ -137,10 +139,17 @@ fn main() {
     }
 
     println!();
-    println!("| Algorithm | Ratio | Compress (MiB/s) | Decompress (MiB/s) |");
-    println!("| --- | ---: | ---: | ---: |");
+    println!(
+        "| {:<20} | {:>6} | {:>16} | {:>18} |",
+        "Algorithm",
+        "Ratio",
+        "Compress (MiB/s)",
+        "Decompress (MiB/s)"
+    );
+    println!("| {:-<20} | {:-<6} | {:-<16} | {:-<18} |", "", "", "", "");
 
     // Print aggregated results
+    print_results("memcpy", &memcpy_results);
     print_results("flate2 (gzip)", &flate2_results);
     print_results("snap (snappy)", &snap_results);
     print_results("lz4", &lz4_results);
@@ -152,6 +161,48 @@ fn main() {
     print_results("miniz_oxide", &miniz_oxide_results);
     print_results("lz4_flex", &lz4_flex_results);
     print_results("libdeflate", &libdeflate_results);
+}
+
+fn benchmark_memcpy(data: &[u8], num_runs: usize) -> BenchmarkResults {
+    println!("  [memcpy] Starting benchmark...");
+    let mut input_sizes = Vec::new();
+    let mut compressed_sizes = Vec::new();
+    let mut compress_times = Vec::new();
+    let mut decompress_times = Vec::new();
+
+    for run in 0..num_runs {
+        let start = Instant::now();
+        let mut compressed = vec![0u8; data.len()];
+        compressed.copy_from_slice(data);
+        let compress_time = start.elapsed();
+        compress_times.push(compress_time);
+        input_sizes.push(data.len());
+        compressed_sizes.push(compressed.len());
+        println!(
+            "  [memcpy] Run {}: copied {} bytes in {:.3}ms",
+            run + 1,
+            compressed.len(),
+            compress_time.as_secs_f64() * 1000.0
+        );
+
+        let start = Instant::now();
+        let mut decompressed = vec![0u8; compressed.len()];
+        decompressed.copy_from_slice(&compressed);
+        let decompress_time = start.elapsed();
+        decompress_times.push(decompress_time);
+        println!(
+            "  [memcpy] Run {}: copied back in {:.3}ms",
+            run + 1,
+            decompress_time.as_secs_f64() * 1000.0
+        );
+    }
+
+    BenchmarkResults {
+        input_sizes,
+        compressed_sizes,
+        compress_times,
+        decompress_times,
+    }
 }
 
 fn benchmark_flate2(data: &[u8], _original_size: usize, num_runs: usize) -> BenchmarkResults {
