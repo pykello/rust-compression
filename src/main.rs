@@ -5,8 +5,8 @@ use std::io::{Read, Write};
 use std::time::Instant;
 use std::time::Duration;
 
-const CHUNK_MB: usize = 200;
-const CHUNK_SIZE: usize = CHUNK_MB * 1024 * 1024; // 200 MB
+const CHUNK_MB: usize = 256;
+const CHUNK_SIZE: usize = CHUNK_MB * 1024 * 1024; // 256 MB
 
 struct BenchmarkResults {
     input_sizes: Vec<usize>,
