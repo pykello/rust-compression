@@ -11,36 +11,53 @@ hadi@w2295:~$ ls -lh noble-server-cloudimg-amd64.raw.truncated
 -rw-rw-r-- 1 hadi hadi 1.9G Feb  5 00:10 noble-server-cloudimg-amd64.raw.truncated
 ```
 
-Results using AMD EPYC 9454P
+Results on Hetzner AX162-R (AMD EPYC 9454P)
 
 | Algorithm            |  Ratio | Compress (MiB/s) | Decompress (MiB/s) |
 | -------------------- | ------ | ---------------- | ------------------ |
-| memcpy               |   1.00 |          2112.84 |            2053.73 |
-| flate2 (gzip)        |   3.38 |            30.52 |             451.51 |
-| snap (snappy)        |   2.39 |           706.05 |            1170.72 |
-| lz4                  |   2.48 |           775.08 |            1797.08 |
-| zstd (level 1)       |   3.27 |           516.08 |             972.41 |
-| zstd (level 3)       |   3.63 |           328.66 |             935.42 |
-| zstd (level 10)      |   4.07 |            72.33 |             958.77 |
-| xz2 (lzma)           |   4.84 |             3.92 |             101.09 |
-| lzma-rs              |   2.11 |            40.63 |              29.86 |
-| miniz_oxide          |   3.38 |            26.08 |             459.38 |
-| lz4_flex             |   2.47 |           693.85 |            1357.06 |
-| libdeflate           |   3.43 |           118.99 |             801.36 |
+| memcpy               |   1.00 |         16713.15 |           16078.12 |
+| flate2 (gzip)        |   3.38 |            30.71 |             547.92 |
+| snap (snappy)        |   2.39 |           793.94 |            2011.19 |
+| lz4                  |   2.48 |           888.62 |            5111.76 |
+| zstd (level 1)       |   3.27 |           628.23 |            1824.17 |
+| zstd (level 3)       |   3.66 |           391.41 |            1666.28 |
+| zstd (level 10)      |   4.08 |            81.92 |            1802.45 |
+| xz2 (lzma)           |   4.82 |             4.02 |             104.80 |
+| lzma-rs              |   2.11 |            33.35 |              30.10 |
+| miniz_oxide          |   3.38 |            26.42 |             632.38 |
+| lz4_flex             |   2.47 |           782.56 |            2749.76 |
+| libdeflate           |   3.43 |           120.33 |            1151.95 |
 
-Results using Intel Xeon W-2295
+Results on an auction Hetzner server with Intel Xeon W-2295
 
 | Algorithm            |  Ratio | Compress (MiB/s) | Decompress (MiB/s) |
 | -------------------- | ------ | ---------------- | ------------------ |
-| memcpy               |   1.00 |          2285.42 |            2305.44 |
-| flate2 (gzip)        |   3.38 |            35.08 |             434.34 |
-| snap (snappy)        |   2.39 |           737.22 |            1349.21 |
-| lz4                  |   2.48 |           776.17 |            2021.04 |
-| zstd (level 1)       |   3.27 |           474.24 |            1057.87 |
-| zstd (level 3)       |   3.63 |           254.12 |             991.87 |
-| zstd (level 10)      |   4.07 |            56.38 |            1000.06 |
-| xz2 (lzma)           |   4.84 |             3.72 |              92.01 |
-| lzma-rs              |   2.11 |            34.82 |              25.38 |
-| miniz_oxide          |   3.38 |            27.69 |             450.02 |
-| lz4_flex             |   2.47 |           592.77 |            1528.90 |
-| libdeflate           |   3.43 |           114.04 |             903.50 |
+| memcpy               |   1.00 |          9934.62 |           10129.61 |
+| flate2 (gzip)        |   3.38 |            35.07 |             497.44 |
+| snap (snappy)        |   2.39 |           806.31 |            2011.72 |
+| lz4                  |   2.48 |           858.44 |            4015.51 |
+| zstd (level 1)       |   3.27 |           596.11 |            1674.48 |
+| zstd (level 3)       |   3.66 |           301.66 |            1444.81 |
+| zstd (level 10)      |   4.08 |            66.27 |            1408.33 |
+| xz2 (lzma)           |   4.82 |             3.73 |              94.66 |
+| lzma-rs              |   2.11 |            32.87 |              23.14 |
+| miniz_oxide          |   3.38 |            27.61 |             531.36 |
+| lz4_flex             |   2.47 |           611.43 |            2539.84 |
+| libdeflate           |   3.43 |           114.93 |            1167.58 |
+
+Result on my laptop (12th Gen Intel Core i5-1240P)
+
+| Algorithm            |  Ratio | Compress (MiB/s) | Decompress (MiB/s) |
+| -------------------- | ------ | ---------------- | ------------------ |
+| memcpy               |   1.00 |         19184.69 |           19515.49 |
+| flate2 (gzip)        |   3.38 |            39.58 |             547.72 |
+| snap (snappy)        |   2.39 |           895.79 |            2086.26 |
+| lz4                  |   2.48 |           893.36 |            5063.36 |
+| zstd (level 1)       |   3.27 |           726.56 |            1933.35 |
+| zstd (level 3)       |   3.66 |           427.02 |            1837.06 |
+| zstd (level 10)      |   4.08 |            75.85 |            1908.78 |
+| xz2 (lzma)           |   4.82 |             4.48 |             111.74 |
+| lzma-rs              |   2.11 |            35.60 |              31.16 |
+| miniz_oxide          |   3.38 |            34.33 |             626.95 |
+| lz4_flex             |   2.47 |           803.08 |            3293.02 |
+| libdeflate           |   3.43 |           142.25 |            1208.51 |
