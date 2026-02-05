@@ -174,10 +174,20 @@ fn benchmark_memcpy(data: &[u8], num_runs: usize) -> BenchmarkResults {
 
     // 2. WARM-UP & PAGE-FAULTING: Ensure OS has actually allocated physical RAM
     // This prevents "cold start" latency from ruining the first run.
-    for i in 0..len {
-        black_box(compressed[i] = 0);
-        black_box(decompressed[i] = 0);
+    for byte in &mut compressed {
+        *byte = 0;
     }
+    for byte in &mut decompressed {
+        *byte = 0;
+    }
+
+    // Warm-up run
+    unsafe {
+        std::ptr::copy_nonoverlapping(black_box(data.as_ptr()), compressed.as_mut_ptr(), len);
+        std::ptr::copy_nonoverlapping(compressed.as_ptr(), decompressed.as_mut_ptr(), len);
+    }
+    black_box(&mut compressed);
+    black_box(&mut decompressed);
 
     let mut input_sizes = Vec::with_capacity(num_runs);
     let mut compressed_sizes = Vec::with_capacity(num_runs);
@@ -223,7 +233,7 @@ fn benchmark_memcpy(data: &[u8], num_runs: usize) -> BenchmarkResults {
         compress_times.push(compress_time);
         decompress_times.push(decompress_time);
         input_sizes.push(len);
-        compressed_sizes.push(len);
+        compressed_sizes.push(black_box(len));
     }
 
     BenchmarkResults {
@@ -239,33 +249,60 @@ fn benchmark_flate2(data: &[u8], _original_size: usize, num_runs: usize) -> Benc
     use flate2::Compression;
 
     println!("  [flate2] Starting benchmark...");
-    let mut input_sizes = Vec::new();
-    let mut compressed_sizes = Vec::new();
-    let mut compress_times = Vec::new();
-    let mut decompress_times = Vec::new();
+    let mut input_sizes = Vec::with_capacity(num_runs);
+    let mut compressed_sizes = Vec::with_capacity(num_runs);
+    let mut compress_times = Vec::with_capacity(num_runs);
+    let mut decompress_times = Vec::with_capacity(num_runs);
+
+    let mut compressed = vec![0u8; data.len() + 1024];
+    let mut decompressed = vec![0u8; data.len()];
+
+    for byte in &mut compressed {
+        *byte = 0;
+    }
+    for byte in &mut decompressed {
+        *byte = 0;
+    }
+    compressed.clear();
+    decompressed.clear();
+
+    // Warm-up run
+    let mut encoder = GzEncoder::new(compressed, Compression::default());
+    encoder.write_all(black_box(data)).unwrap();
+    compressed = encoder.finish().unwrap();
+    let mut decoder = GzDecoder::new(decompressed);
+    decoder.write_all(black_box(&compressed)).unwrap();
+    decompressed = decoder.finish().unwrap();
+    black_box(compressed.len());
+    black_box(decompressed.len());
 
     for run in 0..num_runs {
         // Compression
+        compressed.clear();
         let start = Instant::now();
-        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-        encoder.write_all(data).unwrap();
-        let compressed = encoder.finish().unwrap();
+        let mut encoder = GzEncoder::new(compressed, Compression::default());
+        encoder.write_all(black_box(data)).unwrap();
+        compressed = encoder.finish().unwrap();
         let compress_time = start.elapsed();
+        let compressed_len = black_box(compressed.len());
         compress_times.push(compress_time);
         input_sizes.push(data.len());
-        compressed_sizes.push(compressed.len());
+        compressed_sizes.push(compressed_len);
         println!("  [flate2] Run {}: compressed to {} bytes in {:.3}ms", 
-                 run + 1, compressed.len(), compress_time.as_secs_f64() * 1000.0);
+                 run + 1, compressed_len, compress_time.as_secs_f64() * 1000.0);
 
         // Decompression
+        decompressed.clear();
         let start = Instant::now();
-        let mut decoder = GzDecoder::new(Vec::new());
-        decoder.write_all(&compressed).unwrap();
-        let _decompressed = decoder.finish().unwrap();
+        let mut decoder = GzDecoder::new(decompressed);
+        decoder.write_all(black_box(&compressed)).unwrap();
+        decompressed = decoder.finish().unwrap();
         let decompress_time = start.elapsed();
+        let decompressed_len = black_box(decompressed.len());
         decompress_times.push(decompress_time);
         println!("  [flate2] Run {}: decompressed in {:.3}ms", 
                  run + 1, decompress_time.as_secs_f64() * 1000.0);
+        black_box(decompressed_len);
     }
 
     BenchmarkResults {
@@ -278,31 +315,58 @@ fn benchmark_flate2(data: &[u8], _original_size: usize, num_runs: usize) -> Benc
 
 fn benchmark_snap(data: &[u8], _original_size: usize, num_runs: usize) -> BenchmarkResults {
     use snap::raw::{Decoder, Encoder};
+    use snap::raw::max_compress_len;
 
     println!("  [snap] Starting benchmark...");
-    let mut input_sizes = Vec::new();
-    let mut compressed_sizes = Vec::new();
-    let mut compress_times = Vec::new();
-    let mut decompress_times = Vec::new();
+    let mut input_sizes = Vec::with_capacity(num_runs);
+    let mut compressed_sizes = Vec::with_capacity(num_runs);
+    let mut compress_times = Vec::with_capacity(num_runs);
+    let mut decompress_times = Vec::with_capacity(num_runs);
+
+    let max_len = max_compress_len(data.len());
+    let mut compressed = vec![0u8; max_len];
+    let mut decompressed = vec![0u8; data.len()];
+
+    for byte in &mut compressed {
+        *byte = 0;
+    }
+    for byte in &mut decompressed {
+        *byte = 0;
+    }
+
+    let mut encoder = Encoder::new();
+    let mut decoder = Decoder::new();
+
+    // Warm-up run
+    let compressed_len = encoder.compress(black_box(data), &mut compressed).unwrap();
+    let decompressed_len = decoder
+        .decompress(black_box(&compressed[..compressed_len]), &mut decompressed)
+        .unwrap();
+    black_box(compressed_len);
+    black_box(decompressed_len);
 
     for run in 0..num_runs {
         // Compression
         let start = Instant::now();
-        let compressed = Encoder::new().compress_vec(data).unwrap();
+        let compressed_len = encoder.compress(black_box(data), &mut compressed).unwrap();
         let compress_time = start.elapsed();
+        let compressed_len = black_box(compressed_len);
         compress_times.push(compress_time);
         input_sizes.push(data.len());
-        compressed_sizes.push(compressed.len());
+        compressed_sizes.push(compressed_len);
         println!("  [snap] Run {}: compressed to {} bytes in {:.3}ms", 
-                 run + 1, compressed.len(), compress_time.as_secs_f64() * 1000.0);
+                 run + 1, compressed_len, compress_time.as_secs_f64() * 1000.0);
 
         // Decompression
         let start = Instant::now();
-        let _decompressed = Decoder::new().decompress_vec(&compressed).unwrap();
+        let decompressed_len = decoder
+            .decompress(black_box(&compressed[..compressed_len]), &mut decompressed)
+            .unwrap();
         let decompress_time = start.elapsed();
         decompress_times.push(decompress_time);
         println!("  [snap] Run {}: decompressed in {:.3}ms", 
                  run + 1, decompress_time.as_secs_f64() * 1000.0);
+        black_box(decompressed_len);
     }
 
     BenchmarkResults {
@@ -314,32 +378,63 @@ fn benchmark_snap(data: &[u8], _original_size: usize, num_runs: usize) -> Benchm
 }
 
 fn benchmark_lz4(data: &[u8], original_size: usize, num_runs: usize) -> BenchmarkResults {
-    use lz4::block::{compress, decompress};
+    use lz4::block::{compress_bound, compress_to_buffer, decompress_to_buffer};
 
     println!("  [lz4] Starting benchmark...");
-    let mut input_sizes = Vec::new();
-    let mut compressed_sizes = Vec::new();
-    let mut compress_times = Vec::new();
-    let mut decompress_times = Vec::new();
+    let mut input_sizes = Vec::with_capacity(num_runs);
+    let mut compressed_sizes = Vec::with_capacity(num_runs);
+    let mut compress_times = Vec::with_capacity(num_runs);
+    let mut decompress_times = Vec::with_capacity(num_runs);
+
+    let max_len = compress_bound(data.len()).unwrap_or(data.len());
+    let mut compressed = vec![0u8; max_len];
+    let mut decompressed = vec![0u8; original_size];
+
+    for byte in &mut compressed {
+        *byte = 0;
+    }
+    for byte in &mut decompressed {
+        *byte = 0;
+    }
+
+    // Warm-up run
+    let compressed_len =
+        compress_to_buffer(black_box(data), None, false, &mut compressed).unwrap();
+    let decompressed_len = decompress_to_buffer(
+        black_box(&compressed[..compressed_len]),
+        Some(original_size as i32),
+        &mut decompressed,
+    )
+    .unwrap();
+    black_box(compressed_len);
+    black_box(decompressed_len);
 
     for run in 0..num_runs {
         // Compression
         let start = Instant::now();
-        let compressed = compress(data, None, false).unwrap();
+        let compressed_len =
+            compress_to_buffer(black_box(data), None, false, &mut compressed).unwrap();
         let compress_time = start.elapsed();
+        let compressed_len = black_box(compressed_len);
         compress_times.push(compress_time);
         input_sizes.push(data.len());
-        compressed_sizes.push(compressed.len());
+        compressed_sizes.push(compressed_len);
         println!("  [lz4] Run {}: compressed to {} bytes in {:.3}ms", 
-                 run + 1, compressed.len(), compress_time.as_secs_f64() * 1000.0);
+                 run + 1, compressed_len, compress_time.as_secs_f64() * 1000.0);
 
         // Decompression
         let start = Instant::now();
-        let _decompressed = decompress(&compressed, Some(original_size as i32)).unwrap();
+        let decompressed_len = decompress_to_buffer(
+            black_box(&compressed[..compressed_len]),
+            Some(original_size as i32),
+            &mut decompressed,
+        )
+        .unwrap();
         let decompress_time = start.elapsed();
         decompress_times.push(decompress_time);
         println!("  [lz4] Run {}: decompressed in {:.3}ms", 
                  run + 1, decompress_time.as_secs_f64() * 1000.0);
+        black_box(decompressed_len);
     }
 
     BenchmarkResults {
@@ -350,31 +445,58 @@ fn benchmark_lz4(data: &[u8], original_size: usize, num_runs: usize) -> Benchmar
     }
 }
 
-fn benchmark_zstd(data: &[u8], _original_size: usize, num_runs: usize, level: i32, level_name: &str) -> BenchmarkResults {
+fn benchmark_zstd(data: &[u8], original_size: usize, num_runs: usize, level: i32, level_name: &str) -> BenchmarkResults {
     println!("  [zstd {}] Starting benchmark...", level_name);
-    let mut input_sizes = Vec::new();
-    let mut compressed_sizes = Vec::new();
-    let mut compress_times = Vec::new();
-    let mut decompress_times = Vec::new();
+    let mut input_sizes = Vec::with_capacity(num_runs);
+    let mut compressed_sizes = Vec::with_capacity(num_runs);
+    let mut compress_times = Vec::with_capacity(num_runs);
+    let mut decompress_times = Vec::with_capacity(num_runs);
+
+    let max_len = zstd::zstd_safe::compress_bound(data.len());
+    let mut compressed = vec![0u8; max_len];
+    let mut decompressed = vec![0u8; original_size];
+
+    for byte in &mut compressed {
+        *byte = 0;
+    }
+    for byte in &mut decompressed {
+        *byte = 0;
+    }
+
+    // Warm-up run
+    let compressed_len = zstd::bulk::compress_to_buffer(black_box(data), &mut compressed, level)
+        .unwrap();
+    let decompressed_len =
+        zstd::bulk::decompress_to_buffer(black_box(&compressed[..compressed_len]), &mut decompressed)
+            .unwrap();
+    black_box(compressed_len);
+    black_box(decompressed_len);
 
     for run in 0..num_runs {
         // Compression
         let start = Instant::now();
-        let compressed = zstd::encode_all(data, level).unwrap();
+        let compressed_len =
+            zstd::bulk::compress_to_buffer(black_box(data), &mut compressed, level).unwrap();
         let compress_time = start.elapsed();
+        let compressed_len = black_box(compressed_len);
         compress_times.push(compress_time);
         input_sizes.push(data.len());
-        compressed_sizes.push(compressed.len());
+        compressed_sizes.push(compressed_len);
         println!("  [zstd {}] Run {}: compressed to {} bytes in {:.3}ms", 
-                 level_name, run + 1, compressed.len(), compress_time.as_secs_f64() * 1000.0);
+                 level_name, run + 1, compressed_len, compress_time.as_secs_f64() * 1000.0);
 
         // Decompression
         let start = Instant::now();
-        let _decompressed = zstd::decode_all(&compressed[..]).unwrap();
+        let decompressed_len = zstd::bulk::decompress_to_buffer(
+            black_box(&compressed[..compressed_len]),
+            &mut decompressed,
+        )
+        .unwrap();
         let decompress_time = start.elapsed();
         decompress_times.push(decompress_time);
         println!("  [zstd {}] Run {}: decompressed in {:.3}ms", 
                  level_name, run + 1, decompress_time.as_secs_f64() * 1000.0);
+        black_box(decompressed_len);
     }
 
     BenchmarkResults {
@@ -401,33 +523,55 @@ fn benchmark_xz2(data: &[u8], _original_size: usize, num_runs: usize) -> Benchma
     use xz2::read::{XzDecoder, XzEncoder};
 
     println!("  [xz2] Starting benchmark...");
-    let mut input_sizes = Vec::new();
-    let mut compressed_sizes = Vec::new();
-    let mut compress_times = Vec::new();
-    let mut decompress_times = Vec::new();
+    let mut input_sizes = Vec::with_capacity(num_runs);
+    let mut compressed_sizes = Vec::with_capacity(num_runs);
+    let mut compress_times = Vec::with_capacity(num_runs);
+    let mut decompress_times = Vec::with_capacity(num_runs);
+
+    let mut compressed = vec![0u8; data.len() + 1024 * 1024];
+    let mut decompressed = vec![0u8; data.len()];
+    for byte in &mut compressed {
+        *byte = 0;
+    }
+    for byte in &mut decompressed {
+        *byte = 0;
+    }
+    compressed.clear();
+    decompressed.clear();
+
+    // Warm-up run
+    let mut encoder = XzEncoder::new(black_box(&data[..]), 6);
+    encoder.read_to_end(&mut compressed).unwrap();
+    let mut decoder = XzDecoder::new(black_box(&compressed[..]));
+    decoder.read_to_end(&mut decompressed).unwrap();
+    black_box(compressed.len());
+    black_box(decompressed.len());
 
     for run in 0..num_runs {
         // Compression
+        compressed.clear();
         let start = Instant::now();
-        let mut encoder = XzEncoder::new(&data[..], 6);
-        let mut compressed = Vec::new();
+        let mut encoder = XzEncoder::new(black_box(&data[..]), 6);
         encoder.read_to_end(&mut compressed).unwrap();
         let compress_time = start.elapsed();
+        let compressed_len = black_box(compressed.len());
         compress_times.push(compress_time);
         input_sizes.push(data.len());
-        compressed_sizes.push(compressed.len());
+        compressed_sizes.push(compressed_len);
         println!("  [xz2] Run {}: compressed to {} bytes in {:.3}ms", 
-                 run + 1, compressed.len(), compress_time.as_secs_f64() * 1000.0);
+                 run + 1, compressed_len, compress_time.as_secs_f64() * 1000.0);
 
         // Decompression
+        decompressed.clear();
         let start = Instant::now();
-        let mut decoder = XzDecoder::new(&compressed[..]);
-        let mut decompressed = Vec::new();
+        let mut decoder = XzDecoder::new(black_box(&compressed[..]));
         decoder.read_to_end(&mut decompressed).unwrap();
         let decompress_time = start.elapsed();
+        let decompressed_len = black_box(decompressed.len());
         decompress_times.push(decompress_time);
         println!("  [xz2] Run {}: decompressed in {:.3}ms", 
                  run + 1, decompress_time.as_secs_f64() * 1000.0);
+        black_box(decompressed_len);
     }
 
     BenchmarkResults {
@@ -443,31 +587,55 @@ fn benchmark_lzma_rs(data: &[u8], _original_size: usize, num_runs: usize) -> Ben
     use lzma_rs::lzma_decompress;
 
     println!("  [lzma-rs] Starting benchmark...");
-    let mut input_sizes = Vec::new();
-    let mut compressed_sizes = Vec::new();
-    let mut compress_times = Vec::new();
-    let mut decompress_times = Vec::new();
+    let mut input_sizes = Vec::with_capacity(num_runs);
+    let mut compressed_sizes = Vec::with_capacity(num_runs);
+    let mut compress_times = Vec::with_capacity(num_runs);
+    let mut decompress_times = Vec::with_capacity(num_runs);
+
+    let mut compressed = vec![0u8; data.len() + 1024 * 1024];
+    let mut decompressed = vec![0u8; data.len()];
+    for byte in &mut compressed {
+        *byte = 0;
+    }
+    for byte in &mut decompressed {
+        *byte = 0;
+    }
+    compressed.clear();
+    decompressed.clear();
+
+    // Warm-up run
+    let mut warm_input = black_box(&data[..]);
+    lzma_compress(&mut warm_input, &mut compressed).unwrap();
+    let mut warm_compressed = black_box(&compressed[..]);
+    lzma_decompress(&mut warm_compressed, &mut decompressed).unwrap();
+    black_box(compressed.len());
+    black_box(decompressed.len());
 
     for run in 0..num_runs {
         // Compression
+        compressed.clear();
         let start = Instant::now();
-        let mut compressed = Vec::new();
-        lzma_compress(&mut &data[..], &mut compressed).unwrap();
+        let mut input = black_box(&data[..]);
+        lzma_compress(&mut input, &mut compressed).unwrap();
         let compress_time = start.elapsed();
+        let compressed_len = black_box(compressed.len());
         compress_times.push(compress_time);
         input_sizes.push(data.len());
-        compressed_sizes.push(compressed.len());
+        compressed_sizes.push(compressed_len);
         println!("  [lzma-rs] Run {}: compressed to {} bytes in {:.3}ms", 
-                 run + 1, compressed.len(), compress_time.as_secs_f64() * 1000.0);
+                 run + 1, compressed_len, compress_time.as_secs_f64() * 1000.0);
 
         // Decompression
+        decompressed.clear();
         let start = Instant::now();
-        let mut decompressed = Vec::new();
-        lzma_decompress(&mut &compressed[..], &mut decompressed).unwrap();
+        let mut input = black_box(&compressed[..]);
+        lzma_decompress(&mut input, &mut decompressed).unwrap();
         let decompress_time = start.elapsed();
+        let decompressed_len = black_box(decompressed.len());
         decompress_times.push(decompress_time);
         println!("  [lzma-rs] Run {}: decompressed in {:.3}ms", 
                  run + 1, decompress_time.as_secs_f64() * 1000.0);
+        black_box(decompressed_len);
     }
 
     BenchmarkResults {
@@ -479,33 +647,92 @@ fn benchmark_lzma_rs(data: &[u8], _original_size: usize, num_runs: usize) -> Ben
 }
 
 fn benchmark_miniz_oxide(data: &[u8], _original_size: usize, num_runs: usize) -> BenchmarkResults {
-    use miniz_oxide::deflate::compress_to_vec;
-    use miniz_oxide::inflate::decompress_to_vec;
+    use miniz_oxide::deflate::core::{compress, create_comp_flags_from_zip_params, CompressorOxide, TDEFLFlush, TDEFLStatus};
+    use miniz_oxide::inflate::decompress_slice_iter_to_slice;
 
     println!("  [miniz_oxide] Starting benchmark...");
-    let mut input_sizes = Vec::new();
-    let mut compressed_sizes = Vec::new();
-    let mut compress_times = Vec::new();
-    let mut decompress_times = Vec::new();
+    let mut input_sizes = Vec::with_capacity(num_runs);
+    let mut compressed_sizes = Vec::with_capacity(num_runs);
+    let mut compress_times = Vec::with_capacity(num_runs);
+    let mut decompress_times = Vec::with_capacity(num_runs);
+
+    let max_len = data.len().saturating_mul(2).saturating_add(64);
+    let mut compressed = vec![0u8; max_len];
+    let mut decompressed = vec![0u8; data.len()];
+    for byte in &mut compressed {
+        *byte = 0;
+    }
+    for byte in &mut decompressed {
+        *byte = 0;
+    }
+
+    let flags = create_comp_flags_from_zip_params(6, 0, 0);
+    let mut compressor = CompressorOxide::new(flags);
+
+    fn compress_into(
+        compressor: &mut CompressorOxide,
+        input: &[u8],
+        output: &mut [u8],
+    ) -> usize {
+        let mut input_remaining = input;
+        let mut out_pos = 0;
+        loop {
+            let (status, bytes_in, bytes_out) = compress(
+                compressor,
+                input_remaining,
+                &mut output[out_pos..],
+                TDEFLFlush::Finish,
+            );
+            out_pos += bytes_out;
+            input_remaining = &input_remaining[bytes_in..];
+            match status {
+                TDEFLStatus::Done => return out_pos,
+                TDEFLStatus::Okay => continue,
+                _ => panic!("miniz_oxide compression failed"),
+            }
+        }
+    }
+
+    // Warm-up run
+    compressor.reset();
+    let compressed_len = compress_into(&mut compressor, black_box(data), &mut compressed);
+    let decompressed_len = decompress_slice_iter_to_slice(
+        &mut decompressed,
+        std::iter::once(black_box(&compressed[..compressed_len])),
+        false,
+        false,
+    )
+    .unwrap();
+    black_box(compressed_len);
+    black_box(decompressed_len);
 
     for run in 0..num_runs {
         // Compression
+        compressor.reset();
         let start = Instant::now();
-        let compressed = compress_to_vec(data, 6);
+        let compressed_len = compress_into(&mut compressor, black_box(data), &mut compressed);
         let compress_time = start.elapsed();
+        let compressed_len = black_box(compressed_len);
         compress_times.push(compress_time);
         input_sizes.push(data.len());
-        compressed_sizes.push(compressed.len());
+        compressed_sizes.push(compressed_len);
         println!("  [miniz_oxide] Run {}: compressed to {} bytes in {:.3}ms", 
-                 run + 1, compressed.len(), compress_time.as_secs_f64() * 1000.0);
+                 run + 1, compressed_len, compress_time.as_secs_f64() * 1000.0);
 
         // Decompression
         let start = Instant::now();
-        let _decompressed = decompress_to_vec(&compressed).unwrap();
+        let decompressed_len = decompress_slice_iter_to_slice(
+            &mut decompressed,
+            std::iter::once(black_box(&compressed[..compressed_len])),
+            false,
+            false,
+        )
+        .unwrap();
         let decompress_time = start.elapsed();
         decompress_times.push(decompress_time);
         println!("  [miniz_oxide] Run {}: decompressed in {:.3}ms", 
                  run + 1, decompress_time.as_secs_f64() * 1000.0);
+        black_box(decompressed_len);
     }
 
     BenchmarkResults {
@@ -518,29 +745,51 @@ fn benchmark_miniz_oxide(data: &[u8], _original_size: usize, num_runs: usize) ->
 
 fn benchmark_lz4_flex(data: &[u8], original_size: usize, num_runs: usize) -> BenchmarkResults {
     println!("  [lz4_flex] Starting benchmark...");
-    let mut input_sizes = Vec::new();
-    let mut compressed_sizes = Vec::new();
-    let mut compress_times = Vec::new();
-    let mut decompress_times = Vec::new();
+    let mut input_sizes = Vec::with_capacity(num_runs);
+    let mut compressed_sizes = Vec::with_capacity(num_runs);
+    let mut compress_times = Vec::with_capacity(num_runs);
+    let mut decompress_times = Vec::with_capacity(num_runs);
+
+    let max_len = lz4_flex::block::get_maximum_output_size(data.len());
+    let mut compressed = vec![0u8; max_len];
+    let mut decompressed = vec![0u8; original_size];
+    for byte in &mut compressed {
+        *byte = 0;
+    }
+    for byte in &mut decompressed {
+        *byte = 0;
+    }
+
+    // Warm-up run
+    let compressed_len = lz4_flex::compress_into(black_box(data), &mut compressed).unwrap();
+    let decompressed_len =
+        lz4_flex::decompress_into(black_box(&compressed[..compressed_len]), &mut decompressed)
+            .unwrap();
+    black_box(compressed_len);
+    black_box(decompressed_len);
 
     for run in 0..num_runs {
         // Compression
         let start = Instant::now();
-        let compressed = lz4_flex::compress(data);
+        let compressed_len = lz4_flex::compress_into(black_box(data), &mut compressed).unwrap();
         let compress_time = start.elapsed();
+        let compressed_len = black_box(compressed_len);
         compress_times.push(compress_time);
         input_sizes.push(data.len());
-        compressed_sizes.push(compressed.len());
+        compressed_sizes.push(compressed_len);
         println!("  [lz4_flex] Run {}: compressed to {} bytes in {:.3}ms", 
-                 run + 1, compressed.len(), compress_time.as_secs_f64() * 1000.0);
+                 run + 1, compressed_len, compress_time.as_secs_f64() * 1000.0);
 
         // Decompression
         let start = Instant::now();
-        let _decompressed = lz4_flex::decompress(&compressed, original_size).unwrap();
+        let decompressed_len =
+            lz4_flex::decompress_into(black_box(&compressed[..compressed_len]), &mut decompressed)
+                .unwrap();
         let decompress_time = start.elapsed();
         decompress_times.push(decompress_time);
         println!("  [lz4_flex] Run {}: decompressed in {:.3}ms", 
                  run + 1, decompress_time.as_secs_f64() * 1000.0);
+        black_box(decompressed_len);
     }
 
     BenchmarkResults {
@@ -555,35 +804,58 @@ fn benchmark_libdeflate(data: &[u8], _original_size: usize, num_runs: usize) -> 
     use libdeflater::{Compressor, Decompressor, CompressionLvl};
 
     println!("  [libdeflate] Starting benchmark...");
-    let mut input_sizes = Vec::new();
-    let mut compressed_sizes = Vec::new();
-    let mut compress_times = Vec::new();
-    let mut decompress_times = Vec::new();
+    let mut input_sizes = Vec::with_capacity(num_runs);
+    let mut compressed_sizes = Vec::with_capacity(num_runs);
+    let mut compress_times = Vec::with_capacity(num_runs);
+    let mut decompress_times = Vec::with_capacity(num_runs);
+
+    let mut compressor = Compressor::new(CompressionLvl::default());
+    let mut decompressor = Decompressor::new();
+    let max_sz = compressor.deflate_compress_bound(data.len());
+    let mut compressed = vec![0u8; max_sz];
+    let mut decompressed = vec![0u8; data.len()];
+
+    for byte in &mut compressed {
+        *byte = 0;
+    }
+    for byte in &mut decompressed {
+        *byte = 0;
+    }
+
+    // Warm-up run
+    let compressed_len = compressor
+        .deflate_compress(black_box(data), &mut compressed)
+        .unwrap();
+    let decompressed_len = decompressor
+        .deflate_decompress(black_box(&compressed[..compressed_len]), &mut decompressed)
+        .unwrap();
+    black_box(compressed_len);
+    black_box(decompressed_len);
 
     for run in 0..num_runs {
         // Compression
         let start = Instant::now();
-        let mut compressor = Compressor::new(CompressionLvl::default());
-        let max_sz = compressor.deflate_compress_bound(data.len());
-        let mut compressed = vec![0u8; max_sz];
-        let compressed_size = compressor.deflate_compress(data, &mut compressed).unwrap();
-        compressed.truncate(compressed_size);
+        let compressed_len = compressor
+            .deflate_compress(black_box(data), &mut compressed)
+            .unwrap();
         let compress_time = start.elapsed();
+        let compressed_len = black_box(compressed_len);
         compress_times.push(compress_time);
         input_sizes.push(data.len());
-        compressed_sizes.push(compressed.len());
+        compressed_sizes.push(compressed_len);
         println!("  [libdeflate] Run {}: compressed to {} bytes in {:.3}ms", 
-                 run + 1, compressed.len(), compress_time.as_secs_f64() * 1000.0);
+                 run + 1, compressed_len, compress_time.as_secs_f64() * 1000.0);
 
         // Decompression
         let start = Instant::now();
-        let mut decompressor = Decompressor::new();
-        let mut decompressed = vec![0u8; data.len()];
-        let _decompressed_size = decompressor.deflate_decompress(&compressed, &mut decompressed).unwrap();
+        let decompressed_len = decompressor
+            .deflate_decompress(black_box(&compressed[..compressed_len]), &mut decompressed)
+            .unwrap();
         let decompress_time = start.elapsed();
         decompress_times.push(decompress_time);
         println!("  [libdeflate] Run {}: decompressed in {:.3}ms", 
                  run + 1, decompress_time.as_secs_f64() * 1000.0);
+        black_box(decompressed_len);
     }
 
     BenchmarkResults {
