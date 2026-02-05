@@ -526,7 +526,11 @@ fn print_results(name: &str, results: &BenchmarkResults) {
 
     let total_input_size = results.input_sizes.iter().sum::<usize>() as f64;
     let total_compressed_size = results.compressed_sizes.iter().sum::<usize>() as f64;
-    let ratio = total_input_size / total_compressed_size;
+    let ratio = if total_compressed_size > 0.0 {
+        total_input_size / total_compressed_size
+    } else {
+        0.0
+    };
 
     let total_compress_time = results
         .compress_times
