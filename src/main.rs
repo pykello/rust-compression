@@ -134,11 +134,8 @@ fn main() {
     }
 
     println!();
-    println!(
-        "{:<20} {:>15} {:>20} {:>20}",
-        "Algorithm", "Ratio", "Compress (MiB/s)", "Decompress (MiB/s)"
-    );
-    println!("{}", "-".repeat(80));
+    println!("| Algorithm | Ratio | Compress (MiB/s) | Decompress (MiB/s) |");
+    println!("|---|---:|---:|---:|");
 
     // Print aggregated results
     print_results("flate2 (gzip)", original_size, &flate2_results);
@@ -500,23 +497,26 @@ fn print_results(
         return;
     }
 
-    let avg_compressed_size =
-        results.compressed_sizes.iter().sum::<usize>() as f64 / results.compressed_sizes.len() as f64;
-    let ratio = original_size as f64 / avg_compressed_size;
+    let total_compressed_size = results.compressed_sizes.iter().sum::<usize>() as f64;
+    let total_original_size = original_size as f64 * results.compressed_sizes.len() as f64;
+    let ratio = total_original_size / total_compressed_size;
 
-    let avg_compress_time =
-        results.compress_times.iter().map(|d| d.as_secs_f64()).sum::<f64>() / results.compress_times.len() as f64;
-    let compress_throughput = (original_size as f64 / (1024.0 * 1024.0)) / avg_compress_time;
-
-    let avg_decompress_time = results.decompress_times
+    let total_compress_time = results
+        .compress_times
         .iter()
         .map(|d| d.as_secs_f64())
-        .sum::<f64>()
-        / results.decompress_times.len() as f64;
-    let decompress_throughput = (original_size as f64 / (1024.0 * 1024.0)) / avg_decompress_time;
+        .sum::<f64>();
+    let compress_throughput = (total_original_size / (1024.0 * 1024.0)) / total_compress_time;
+
+    let total_decompress_time = results
+        .decompress_times
+        .iter()
+        .map(|d| d.as_secs_f64())
+        .sum::<f64>();
+    let decompress_throughput = (total_original_size / (1024.0 * 1024.0)) / total_decompress_time;
 
     println!(
-        "{:<20} {:>15.2} {:>20.2} {:>20.2}",
+        "| {} | {:.2} | {:.2} | {:.2} |",
         name, ratio, compress_throughput, decompress_throughput
     );
 }
