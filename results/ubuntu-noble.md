@@ -14,7 +14,8 @@ hadi@w2295:~$ ls -lh noble-server-cloudimg-amd64.raw.truncated
 Results using AMD EPYC 9454P
 
 | Algorithm       | Ratio | Compress (MiB/s) | Decompress (MiB/s) |
-| :-------------- | :---: | :--------------: | :----------------: |
+| :-------------- | ----: | --------------: | ----------------: |
+| memcpy          | 1.00  | N/A             | N/A               |
 | flate2 (gzip)   | 33.82 |      305.12      |       4498.42      |
 | snap (snappy)   | 23.89 |     7086.81      |      11585.72      |
 | lz4             | 24.76 |     7789.13      |      17650.88      |
@@ -30,7 +31,8 @@ Results using AMD EPYC 9454P
 Results using Intel Xeon W-2295
 
 | Algorithm       | Ratio | Compress (MiB/s) | Decompress (MiB/s) |
-| :-------------- | :---: | :--------------: | :----------------: |
+| :-------------- | ----: | --------------: | ----------------: |
+| memcpy          | 1.00  | N/A             | N/A               |
 | flate2 (gzip)   | 33.82 |      349.79      |       4342.96      |
 | snap (snappy)   | 23.89 |     7353.47      |      13418.70      |
 | lz4             | 24.76 |     7792.10      |      20300.40      |
