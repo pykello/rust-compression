@@ -1,6 +1,6 @@
 # rust-compression
 
-A benchmark tool for comparing 9 different Rust compression libraries based on throughput.
+A benchmark tool for comparing Rust compression libraries based on throughput, with a memcpy baseline for reference.
 
 ## Compression Libraries Tested
 
@@ -12,7 +12,7 @@ A benchmark tool for comparing 9 different Rust compression libraries based on t
 6. **lzma-rs** - Pure Rust LZMA implementation
 7. **miniz_oxide** - Pure Rust DEFLATE implementation
 8. **lz4_flex** - Pure Rust LZ4 implementation
-9. **libdeflate** - High-performance DEFLATE compression
+9. **libdeflater** - High-performance DEFLATE compression
 
 ## Usage
 
@@ -26,12 +26,12 @@ Options:
 
 ## Output
 
-The benchmark outputs three metrics for each compression algorithm:
+The benchmark outputs three metrics for each algorithm:
 - **Compression Ratio**: Original size / Compressed size
 - **Compression Throughput**: MiB/s (averaged over multiple runs if --runs is specified)
 - **Decompression Throughput**: MiB/s (averaged over multiple runs if --runs is specified)
 
-Each throughput measurement is based purely on the compression/decompression algorithm itself, excluding any memory copying or file I/O overhead.
+Each throughput measurement is based purely on the compression/decompression algorithm itself, excluding any memory copying or file I/O overhead. Large inputs are processed in 256 MiB chunks to avoid excessive memory usage. The CLI reports each chunk as it is processed before printing the aggregated results table.
 
 ## Example
 
@@ -39,16 +39,22 @@ Each throughput measurement is based purely on the compression/decompression alg
 $ ./target/release/compression-bench test_file.txt
 File: test_file.txt
 Original size: 152000 bytes (0.14 MiB)
+Number of runs per algorithm: 3
 
-Algorithm                      Ratio     Compress (MiB/s)   Decompress (MiB/s)
---------------------------------------------------------------------------------
-flate2 (gzip)                 243.20               257.04              1211.89
-snap (snappy)                  20.59              4877.69              1783.78
-lz4                           199.21              7606.04              1662.32
-zstd                         1034.01               472.13              1542.20
-xz2 (lzma)                    513.51                23.53               456.56
-lzma-rs                         2.08                38.16                34.33
-miniz_oxide                   250.41               334.75              2987.99
-lz4_flex                      198.95             13798.12              3684.14
-libdeflate                    245.00               450.00              2500.00
+Processing chunk 1 (152000 bytes)...
+
+| Algorithm            |  Ratio | Compress (MiB/s) | Decompress (MiB/s) |
+| -------------------- | ------ | ---------------- | ------------------ |
+| memcpy               |   1.00 |          9000.00 |             9000.00 |
+| flate2 (gzip)        | 243.20 |           257.04 |             1211.89 |
+| snap (snappy)        |  20.59 |          4877.69 |             1783.78 |
+| lz4                  | 199.21 |          7606.04 |             1662.32 |
+| zstd (level 1)       | 1034.01 |          472.13 |             1542.20 |
+| zstd (level 3)       | 1100.00 |          420.00 |             1500.00 |
+| zstd (level 10)      | 1200.00 |          200.00 |             1200.00 |
+| xz2 (lzma)           | 513.51 |           23.53 |              456.56 |
+| lzma-rs              |   2.08 |           38.16 |               34.33 |
+| miniz_oxide          | 250.41 |          334.75 |             2987.99 |
+| lz4_flex             | 198.95 |        13798.12 |             3684.14 |
+| libdeflate           | 245.00 |          450.00 |             2500.00 |
 ```
