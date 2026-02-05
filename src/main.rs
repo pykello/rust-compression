@@ -1,5 +1,6 @@
 use std::env;
 use std::fs;
+use std::hint::black_box;
 use std::io::{Read, Write};
 use std::time::Instant;
 use std::time::Duration;
@@ -164,50 +165,65 @@ fn main() {
 }
 
 fn benchmark_memcpy(data: &[u8], num_runs: usize) -> BenchmarkResults {
-    use std::hint::black_box;
+    println!("  [memcpy] Preparing buffers (256MB+ recommended for DRAM testing)...");
 
-    println!("  [memcpy] Starting benchmark...");
-    let mut input_sizes = Vec::new();
-    let mut compressed_sizes = Vec::new();
-    let mut compress_times = Vec::new();
-    let mut decompress_times = Vec::new();
+    // 1. Pre-allocate buffers
+    let len = data.len();
+    let mut compressed = vec![0u8; len];
+    let mut decompressed = vec![0u8; len];
 
-    let mut compressed = vec![0u8; data.len()];
-    let mut decompressed = vec![0u8; data.len()];
+    // 2. WARM-UP & PAGE-FAULTING: Ensure OS has actually allocated physical RAM
+    // This prevents "cold start" latency from ruining the first run.
+    for i in 0..len {
+        black_box(compressed[i] = 0);
+        black_box(decompressed[i] = 0);
+    }
+
+    let mut input_sizes = Vec::with_capacity(num_runs);
+    let mut compressed_sizes = Vec::with_capacity(num_runs);
+    let mut compress_times = Vec::with_capacity(num_runs);
+    let mut decompress_times = Vec::with_capacity(num_runs);
+
+    println!("  [memcpy] Starting benchmark ({} runs)...", num_runs);
 
     for run in 0..num_runs {
+        // --- Forward Copy (Data -> Compressed) ---
+        let src = black_box(data.as_ptr());
+        let dst = black_box(compressed.as_mut_ptr());
+
         let start = Instant::now();
         unsafe {
-            std::ptr::copy_nonoverlapping(data.as_ptr(), compressed.as_mut_ptr(), data.len());
+            // This is the closest Rust equivalent to C's memcpy
+            std::ptr::copy_nonoverlapping(src, dst, len);
         }
-        black_box(&compressed);
+        // Force the CPU to treat the memory as 'dirty' so the copy isn't skipped
+        black_box(&mut compressed);
         let compress_time = start.elapsed();
-        compress_times.push(compress_time);
-        input_sizes.push(data.len());
-        compressed_sizes.push(compressed.len());
+
+        // --- Backward Copy (Compressed -> Decompressed) ---
+        let src_back = black_box(compressed.as_ptr());
+        let dst_back = black_box(decompressed.as_mut_ptr());
+
+        let start_back = Instant::now();
+        unsafe {
+            std::ptr::copy_nonoverlapping(src_back, dst_back, len);
+        }
+        black_box(&mut decompressed);
+        let decompress_time = start_back.elapsed();
+
+        // Calculate and Print MiB/s for immediate feedback
+        let mib_s = (len as f64 / (1024.0 * 1024.0)) / compress_time.as_secs_f64();
         println!(
-            "  [memcpy] Run {}: copied {} bytes in {:.3}ms",
+            "  Run {}: {:.2} MiB/s ({:.3}ms)",
             run + 1,
-            compressed.len(),
+            mib_s,
             compress_time.as_secs_f64() * 1000.0
         );
 
-        let start = Instant::now();
-        unsafe {
-            std::ptr::copy_nonoverlapping(
-                compressed.as_ptr(),
-                decompressed.as_mut_ptr(),
-                compressed.len(),
-            );
-        }
-        black_box(&decompressed);
-        let decompress_time = start.elapsed();
+        compress_times.push(compress_time);
         decompress_times.push(decompress_time);
-        println!(
-            "  [memcpy] Run {}: copied back in {:.3}ms",
-            run + 1,
-            decompress_time.as_secs_f64() * 1000.0
-        );
+        input_sizes.push(len);
+        compressed_sizes.push(len);
     }
 
     BenchmarkResults {
