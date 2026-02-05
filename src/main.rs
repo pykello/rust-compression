@@ -165,7 +165,7 @@ fn main() {
 }
 
 fn benchmark_memcpy(data: &[u8], num_runs: usize) -> BenchmarkResults {
-    println!("  [memcpy] Preparing buffers (256MB+ recommended for DRAM testing)...");
+    println!("  [memcpy] Preparing buffers ...");
 
     // 1. Pre-allocate buffers
     let len = data.len();
