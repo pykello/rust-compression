@@ -172,10 +172,14 @@ fn benchmark_memcpy(data: &[u8], num_runs: usize) -> BenchmarkResults {
     let mut compress_times = Vec::new();
     let mut decompress_times = Vec::new();
 
+    let mut compressed = vec![0u8; data.len()];
+    let mut decompressed = vec![0u8; data.len()];
+
     for run in 0..num_runs {
         let start = Instant::now();
-        let mut compressed = vec![0u8; data.len()];
-        compressed.copy_from_slice(data);
+        unsafe {
+            std::ptr::copy_nonoverlapping(data.as_ptr(), compressed.as_mut_ptr(), data.len());
+        }
         black_box(&compressed);
         let compress_time = start.elapsed();
         compress_times.push(compress_time);
@@ -189,8 +193,13 @@ fn benchmark_memcpy(data: &[u8], num_runs: usize) -> BenchmarkResults {
         );
 
         let start = Instant::now();
-        let mut decompressed = vec![0u8; compressed.len()];
-        decompressed.copy_from_slice(&compressed);
+        unsafe {
+            std::ptr::copy_nonoverlapping(
+                compressed.as_ptr(),
+                decompressed.as_mut_ptr(),
+                compressed.len(),
+            );
+        }
         black_box(&decompressed);
         let decompress_time = start.elapsed();
         decompress_times.push(decompress_time);
